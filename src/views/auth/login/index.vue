@@ -18,7 +18,8 @@
             @keyup.enter="handleSubmit"
             style="margin-top: 25px"
           >
-            <ElFormItem prop="account">
+            <!-- 导致账号无法自动填充 -->
+            <!-- <ElFormItem prop="account">
               <ElSelect v-model="formData.account" @change="setupAccount">
                 <ElOption
                   v-for="account in accounts"
@@ -29,7 +30,7 @@
                   <span>{{ account.label }}</span>
                 </ElOption>
               </ElSelect>
-            </ElFormItem>
+            </ElFormItem> -->
             <ElFormItem prop="username">
               <ElInput
                 class="custom-height"
@@ -49,7 +50,7 @@
             </ElFormItem>
 
             <!-- 推拽验证 -->
-            <div class="relative pb-5 mt-6">
+            <!-- <div class="relative pb-5 mt-6">
               <div
                 class="relative z-[2] overflow-hidden select-none rounded-lg border border-transparent tad-300"
                 :class="{ '!border-[#FF4E4F]': !isPassing && isClickPass }"
@@ -71,7 +72,7 @@
               >
                 {{ $t('login.placeholder.slider') }}
               </p>
-            </div>
+            </div> -->
 
             <div class="flex-cb mt-2 text-sm">
               <ElCheckbox v-model="formData.rememberPassword">{{
@@ -114,12 +115,12 @@
   import { HttpError } from '@/utils/http/error'
   import { fetchLogin } from '@/api/auth'
   import { ElNotification, type FormInstance, type FormRules } from 'element-plus'
-  import { useSettingStore } from '@/store/modules/setting'
+  // import { useSettingStore } from '@/store/modules/setting'
 
   defineOptions({ name: 'Login' })
 
-  const settingStore = useSettingStore()
-  const { isDark } = storeToRefs(settingStore)
+  // const settingStore = useSettingStore()
+  // const { isDark } = storeToRefs(settingStore)
   const { t, locale } = useI18n()
   const formKey = ref(0)
 
@@ -167,8 +168,8 @@
   const userStore = useUserStore()
   const router = useRouter()
   const route = useRoute()
-  const isPassing = ref(false)
-  const isClickPass = ref(false)
+  // const isPassing = ref(false)
+  // const isClickPass = ref(false)
 
   const systemName = AppConfig.systemInfo.name
   const formRef = ref<FormInstance>()
@@ -209,10 +210,10 @@
       if (!valid) return
 
       // 拖拽验证
-      if (!isPassing.value) {
-        isClickPass.value = true
-        return
-      }
+      // if (!isPassing.value) {
+      //   isClickPass.value = true
+      //   return
+      // }
 
       loading.value = true
 
@@ -256,7 +257,7 @@
 
   // 重置拖拽验证
   const resetDragVerify = () => {
-    dragVerify.value.reset()
+    dragVerify.value?.reset()
   }
 
   // 登录成功提示

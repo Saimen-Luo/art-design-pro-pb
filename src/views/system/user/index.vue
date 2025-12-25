@@ -6,14 +6,16 @@
 <template>
   <div class="user-page art-full-height">
     <!-- 搜索栏 -->
-    <UserSearch v-model="searchForm" @search="handleSearch" @reset="resetSearchParams"></UserSearch>
+    <!-- <UserSearch v-model="searchForm" @search="handleSearch" @reset="resetSearchParams"></UserSearch> -->
 
     <ElCard class="art-table-card" shadow="never">
       <!-- 表格头部 -->
       <ArtTableHeader v-model:columns="columnChecks" :loading="loading" @refresh="refreshData">
         <template #left>
           <ElSpace wrap>
-            <ElButton @click="showDialog('add')" v-ripple>新增用户</ElButton>
+            <ElButton @click="showDialog('add')" v-ripple v-if="hasAuth('users_create')">
+              新增用户
+            </ElButton>
           </ElSpace>
         </template>
       </ArtTableHeader>
@@ -43,25 +45,28 @@
 
 <script setup lang="ts">
   import ArtButtonTable from '@/components/core/forms/art-button-table/index.vue'
-  import { ACCOUNT_TABLE_DATA } from '@/mock/temp/formData'
   import { useTable } from '@/hooks/core/useTable'
-  import { fetchGetUserList } from '@/api/system-manage'
-  import UserSearch from './modules/user-search.vue'
+  // import UserSearch from './modules/user-search.vue'
   import UserDialog from './modules/user-dialog.vue'
   import { ElTag, ElMessageBox, ElImage } from 'element-plus'
   import { DialogType } from '@/types'
+  import pb from '@/utils/http/pocketbase'
+  import { UsersResponse } from '@/types/pb/pb-types'
+  import { useAuth } from '@/hooks'
+  import { ColumnsFactoryKeyProp } from '@/types/pb/my-pb-types'
 
   defineOptions({ name: 'User' })
 
-  type UserListItem = Api.SystemManage.UserListItem
+  const usersPb = pb.from('users')
+  const { hasAuth } = useAuth()
 
   // 弹窗相关
   const dialogType = ref<DialogType>('add')
   const dialogVisible = ref(false)
-  const currentUserData = ref<Partial<UserListItem>>({})
+  const currentUserData = ref<Partial<UsersResponse>>({})
 
   // 选中行
-  const selectedRows = ref<UserListItem[]>([])
+  const selectedRows = ref<UsersResponse[]>([])
 
   // 搜索表单
   const searchForm = ref({
@@ -73,24 +78,24 @@
   })
 
   // 用户状态配置
-  const USER_STATUS_CONFIG = {
-    '1': { type: 'success' as const, text: '在线' },
-    '2': { type: 'info' as const, text: '离线' },
-    '3': { type: 'warning' as const, text: '异常' },
-    '4': { type: 'danger' as const, text: '注销' }
-  } as const
+  // const USER_STATUS_CONFIG = {
+  //   '1': { type: 'success' as const, text: '在线' },
+  //   '2': { type: 'info' as const, text: '离线' },
+  //   '3': { type: 'warning' as const, text: '异常' },
+  //   '4': { type: 'danger' as const, text: '删除' }
+  // } as const
 
   /**
    * 获取用户状态配置
    */
-  const getUserStatusConfig = (status: string) => {
-    return (
-      USER_STATUS_CONFIG[status as keyof typeof USER_STATUS_CONFIG] || {
-        type: 'info' as const,
-        text: '未知'
-      }
-    )
-  }
+  // const getUserStatusConfig = (status: string) => {
+  //   return (
+  //     USER_STATUS_CONFIG[status as keyof typeof USER_STATUS_CONFIG] || {
+  //       type: 'info' as const,
+  //       text: '未知'
+  //     }
+  //   )
+  // }
 
   const {
     columns,
@@ -98,16 +103,25 @@
     data,
     loading,
     pagination,
-    getData,
-    searchParams,
-    resetSearchParams,
+    // getData,
+    // searchParams,
+    // resetSearchParams,
     handleSizeChange,
     handleCurrentChange,
     refreshData
   } = useTable({
     // 核心配置
     core: {
-      apiFn: fetchGetUserList,
+      apiFn: () =>
+        usersPb.getFullList({
+          select: {
+            expand: {
+              roles: {
+                name: true
+              }
+            }
+          }
+        }),
       apiParams: {
         current: 1,
         size: 20,
@@ -118,47 +132,69 @@
       //   current: 'pageNum',
       //   size: 'pageSize'
       // },
-      columnsFactory: () => [
+      columnsFactory: (() => [
         { type: 'selection' }, // 勾选列
         { type: 'index', width: 60, label: '序号' }, // 序号
         {
-          prop: 'userInfo',
+          prop: 'name',
           label: '用户名',
           width: 280,
           // visible: false, // 默认是否显示列
           formatter: (row) => {
+            const url = row.avatar ? pb.files.getURL(row, row.avatar) : ''
             return h('div', { class: 'user flex-c' }, [
-              h(ElImage, {
-                class: 'size-9.5 rounded-md',
-                src: row.avatar,
-                previewSrcList: [row.avatar],
-                // 图片预览是否插入至 body 元素上，用于解决表格内部图片预览样式异常
-                previewTeleported: true
-              }),
+              url
+                ? h(ElImage, {
+                    class: 'size-9.5 rounded-md',
+                    src: url,
+                    previewSrcList: [url],
+                    // 图片预览是否插入至 body 元素上，用于解决表格内部图片预览样式异常
+                    previewTeleported: true
+                  })
+                : h('div', {
+                    class: 'size-9.5 rounded-md bg-gray-500'
+                  }),
               h('div', { class: 'ml-2' }, [
-                h('p', { class: 'user-name' }, row.userName),
-                h('p', { class: 'email' }, row.userEmail)
+                h('p', { class: 'user-name' }, row.name),
+                h('p', { class: 'email' }, row.email)
               ])
             ])
           }
         },
         {
-          prop: 'userGender',
+          prop: 'gender',
           label: '性别',
           sortable: true,
-          formatter: (row) => row.userGender
-        },
-        { prop: 'userPhone', label: '手机号' },
-        {
-          prop: 'status',
-          label: '状态',
           formatter: (row) => {
-            const statusConfig = getUserStatusConfig(row.status)
-            return h(ElTag, { type: statusConfig.type }, () => statusConfig.text)
+            let str = ''
+            switch (row.gender) {
+              case 'male':
+                str = '男'
+                break
+              case 'female':
+                str = '女'
+                break
+            }
+            return str
           }
         },
+        { prop: 'phone', label: '手机号' },
+        // {
+        //   prop: 'status',
+        //   label: '状态',
+        //   formatter: (row) => {
+        //     const statusConfig = getUserStatusConfig(row.status)
+        //     return h(ElTag, { type: statusConfig.type }, () => statusConfig.text)
+        //   }
+        // },
         {
-          prop: 'createTime',
+          prop: 'roles',
+          label: '角色',
+          // sortable: true,
+          formatter: (row) => row.expand.roles.map((i: any) => h(ElTag, () => i.name))
+        },
+        {
+          prop: 'created',
           label: '创建日期',
           sortable: true
         },
@@ -169,36 +205,19 @@
           fixed: 'right', // 固定列
           formatter: (row) =>
             h('div', [
-              h(ArtButtonTable, {
-                type: 'edit',
-                onClick: () => showDialog('edit', row)
-              }),
-              h(ArtButtonTable, {
-                type: 'delete',
-                onClick: () => deleteUser(row)
-              })
+              hasAuth('users_update') &&
+                h(ArtButtonTable, {
+                  type: 'edit',
+                  onClick: () => showDialog('edit', row)
+                }),
+              hasAuth('users_delete') &&
+                h(ArtButtonTable, {
+                  type: 'delete',
+                  onClick: () => deleteUser(row)
+                })
             ])
         }
-      ]
-    },
-    // 数据处理
-    transform: {
-      // 数据转换器 - 替换头像
-      dataTransformer: (records) => {
-        // 类型守卫检查
-        if (!Array.isArray(records)) {
-          console.warn('数据转换器: 期望数组类型，实际收到:', typeof records)
-          return []
-        }
-
-        // 使用本地头像替换接口返回的头像
-        return records.map((item, index: number) => {
-          return {
-            ...item,
-            avatar: ACCOUNT_TABLE_DATA[index % ACCOUNT_TABLE_DATA.length].avatar
-          }
-        })
-      }
+      ]) satisfies ColumnsFactoryKeyProp<UsersResponse>
     }
   })
 
@@ -206,17 +225,17 @@
    * 搜索处理
    * @param params 参数
    */
-  const handleSearch = (params: Record<string, any>) => {
-    console.log(params)
-    // 搜索参数赋值
-    Object.assign(searchParams, params)
-    getData()
-  }
+  // const handleSearch = (params: Record<string, any>) => {
+  //   console.log(params)
+  //   // 搜索参数赋值
+  //   Object.assign(searchParams, params)
+  //   getData()
+  // }
 
   /**
    * 显示用户弹窗
    */
-  const showDialog = (type: DialogType, row?: UserListItem): void => {
+  const showDialog = (type: DialogType, row?: UsersResponse): void => {
     console.log('打开弹窗:', { type, row })
     dialogType.value = type
     currentUserData.value = row || {}
@@ -228,15 +247,18 @@
   /**
    * 删除用户
    */
-  const deleteUser = (row: UserListItem): void => {
-    console.log('删除用户:', row)
-    ElMessageBox.confirm(`确定要注销该用户吗？`, '注销用户', {
+  const deleteUser = (row: UsersResponse): void => {
+    ElMessageBox.confirm(`确定要删除该用户吗？`, '删除用户', {
       confirmButtonText: '确定',
       cancelButtonText: '取消',
       type: 'error'
-    }).then(() => {
-      ElMessage.success('注销成功')
     })
+      .then(async () => {
+        await usersPb.delete(row.id)
+        ElMessage.success('删除成功')
+        refreshData()
+      })
+      .catch(() => {})
   }
 
   /**
@@ -246,6 +268,7 @@
     try {
       dialogVisible.value = false
       currentUserData.value = {}
+      refreshData()
     } catch (error) {
       console.error('提交失败:', error)
     }
@@ -254,7 +277,7 @@
   /**
    * 处理表格行选择变化
    */
-  const handleSelectionChange = (selection: UserListItem[]): void => {
+  const handleSelectionChange = (selection: UsersResponse[]): void => {
     selectedRows.value = selection
     console.log('选中行数据:', selectedRows.value)
   }

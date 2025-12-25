@@ -12,20 +12,13 @@
         ref="treeRef"
         :data="processedMenuList"
         show-checkbox
-        node-key="name"
+        check-strictly
+        node-key="id"
         :default-expand-all="isExpandAll"
-        :default-checked-keys="[1, 2, 3]"
+        :default-checked-keys="roleMenus"
         :props="defaultProps"
         @check="handleTreeCheck"
       >
-        <template #default="{ data }">
-          <div style="display: flex; align-items: center">
-            <span v-if="data.isAuth">
-              {{ data.label }}
-            </span>
-            <span v-else>{{ defaultProps.label(data) }}</span>
-          </div>
-        </template>
       </ElTree>
     </ElScrollbar>
     <template #footer>
@@ -41,14 +34,14 @@
 </template>
 
 <script setup lang="ts">
-  import { useMenuStore } from '@/store/modules/menu'
+  import { MenusResponse, RolesResponse } from '@/types/pb/pb-types'
+  import { arrayToTree } from '@/utils'
+  import pb from '@/utils/http/pocketbase'
   import { formatMenuTitle } from '@/utils/router'
-
-  type RoleListItem = Api.SystemManage.RoleListItem
 
   interface Props {
     modelValue: boolean
-    roleData?: RoleListItem
+    roleData?: RolesResponse
   }
 
   interface Emits {
@@ -63,7 +56,11 @@
 
   const emit = defineEmits<Emits>()
 
-  const { menuList } = storeToRefs(useMenuStore())
+  const menuList = ref<MenusResponse[]>([])
+  const roleMenus = ref<string[]>([])
+  pb.from('menus')
+    .getFullList()
+    .then((list) => (menuList.value = list))
   const treeRef = ref()
   const isExpandAll = ref(true)
   const isSelectAll = ref(false)
@@ -99,41 +96,14 @@
    * 处理菜单数据，将 authList 转换为树形子节点
    * 递归处理菜单树，将权限列表展开为可选择的子节点
    */
-  const processedMenuList = computed(() => {
-    const processNode = (node: MenuNode): MenuNode => {
-      const processed = { ...node }
-
-      // 如果有 authList，将其转换为子节点
-      if (node.meta?.authList?.length) {
-        const authNodes = node.meta.authList.map((auth) => ({
-          id: `${node.id}_${auth.authMark}`,
-          name: `${node.name}_${auth.authMark}`,
-          label: auth.title,
-          authMark: auth.authMark,
-          isAuth: true,
-          checked: auth.checked || false
-        }))
-
-        processed.children = processed.children ? [...processed.children, ...authNodes] : authNodes
-      }
-
-      // 递归处理子节点
-      if (processed.children) {
-        processed.children = processed.children.map(processNode)
-      }
-
-      return processed
-    }
-
-    return (menuList.value as any[]).map(processNode)
-  })
+  const processedMenuList = computed(() => arrayToTree(menuList.value))
 
   /**
    * 树形组件配置
    */
   const defaultProps = {
     children: 'children',
-    label: (data: any) => formatMenuTitle(data.meta?.title) || data.label || ''
+    label: (data: any) => formatMenuTitle(data.meta_title) || data.meta_title
   }
 
   /**
@@ -143,8 +113,7 @@
     () => props.modelValue,
     (newVal) => {
       if (newVal && props.roleData) {
-        // TODO: 根据角色加载对应的权限数据
-        console.log('设置权限:', props.roleData)
+        roleMenus.value = props.roleData.menus
       }
     }
   )
@@ -154,17 +123,27 @@
    */
   const handleClose = () => {
     visible.value = false
+    roleMenus.value = []
     treeRef.value?.setCheckedKeys([])
   }
 
   /**
    * 保存权限配置
    */
-  const savePermission = () => {
-    // TODO: 调用保存权限接口
-    ElMessage.success('权限保存成功')
-    emit('success')
-    handleClose()
+  const savePermission = async () => {
+    const tree = treeRef.value
+    const id = props.roleData?.id
+    if (!tree) return
+    if (!id) return
+    try {
+      await pb.from('roles').update(id, { menus: tree.getCheckedKeys() })
+      ElMessage.success('权限保存成功')
+      emit('success')
+      handleClose()
+    } catch (error) {
+      ElMessage.error('权限保存失败')
+      console.error(error)
+    }
   }
 
   /**
@@ -191,8 +170,7 @@
     if (!tree) return
 
     if (!isSelectAll.value) {
-      const allKeys = getAllNodeKeys(processedMenuList.value)
-      tree.setCheckedKeys(allKeys)
+      tree.setCheckedKeys(menuList.value.map((i) => i.id))
     } else {
       tree.setCheckedKeys([])
     }

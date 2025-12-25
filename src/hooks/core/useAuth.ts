@@ -35,6 +35,7 @@ import { storeToRefs } from 'pinia'
 import { useUserStore } from '@/store/modules/user'
 import { useAppMode } from '@/hooks/core/useAppMode'
 import type { AppRouteRecord } from '@/types/router'
+import { ButtonPermissions } from '@/types/pb/my-pb-types'
 
 type AuthItem = NonNullable<AppRouteRecord['meta']['authList']>[number]
 
@@ -58,7 +59,7 @@ export const useAuth = () => {
    * @param auth 权限标识
    * @returns 是否有权限
    */
-  const hasAuth = (auth: string): boolean => {
+  const hasAuth = (auth: ButtonPermissions): boolean => {
     // 前端模式
     if (isFrontendMode.value) {
       return frontendAuthList.includes(auth)

@@ -30,9 +30,10 @@
  */
 import { defineStore } from 'pinia'
 import { ref } from 'vue'
-import { AppRouteRecord } from '@/types/router'
-import { getFirstMenuPath } from '@/utils'
+import { AppRouteRecord, RouteMeta } from '@/types/router'
+import { arrayToTree, getFirstMenuPath } from '@/utils'
 import { HOME_PAGE_PATH } from '@/router'
+import { MenusResponse } from '@/types/pb/pb-types'
 
 /**
  * 菜单状态管理
@@ -41,6 +42,62 @@ import { HOME_PAGE_PATH } from '@/router'
 export const useMenuStore = defineStore('menuStore', () => {
   /** 首页路径 */
   const homePath = ref(HOME_PAGE_PATH)
+  /** 系统菜单列表 */
+  const systemMenus = ref<MenusResponse[]>([])
+  /** 用户角色菜单列表 */
+  const rolesMenus = ref<MenusResponse[]>([])
+  const rolesRoutes = computed<AppRouteRecord[]>(() => {
+    /* 
+    1 去重 多个 roles 时菜单有重复
+    2 meta
+    3 children
+    4 authList
+    */
+    const arr: Array<MenusResponse & { meta: RouteMeta }> = []
+    rolesMenus.value.forEach((menu) => {
+      if (!arr.some((i) => i.id === menu.id)) {
+        const meta: RouteMeta = {
+          title: ''
+        }
+        Object.entries(menu).forEach(([key, val]) => {
+          const metaPrefix = 'meta_'
+          if (key.startsWith(metaPrefix)) {
+            meta[key.replace(metaPrefix, '')] = val
+          }
+        })
+        arr.push({
+          ...menu,
+          meta
+        })
+      }
+    })
+    const cArr = arrayToTree(arr)
+    type TWithChildren = typeof cArr
+    function buttonToAuthList(arr: TWithChildren) {
+      return arr.map((route) => {
+        const menuChildren: TWithChildren = []
+        route.children?.forEach((c) => {
+          if (c.type === 'button') {
+            route.meta.authList ??= []
+            route.meta.authList.push({
+              title: c.meta.title,
+              authMark: c.name
+            })
+          } else {
+            menuChildren.push(c)
+          }
+        })
+        route.children = menuChildren
+        if (route.children?.length) {
+          // @ts-expect-error 提取字段
+          route.children = buttonToAuthList(route.children)
+        }
+        const { name, path, component, meta, children } = route
+        return { name, path, component, meta, children }
+      })
+    }
+    return buttonToAuthList(cArr)
+  })
   /** 菜单列表 */
   const menuList = ref<AppRouteRecord[]>([])
   /** 菜单宽度 */
@@ -96,6 +153,9 @@ export const useMenuStore = defineStore('menuStore', () => {
   }
 
   return {
+    systemMenus,
+    rolesMenus,
+    rolesRoutes,
     menuList,
     menuWidth,
     removeRouteFns,

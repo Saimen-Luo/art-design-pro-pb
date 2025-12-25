@@ -33,10 +33,11 @@
  */
 
 import { router } from '@/router'
+import { ButtonPermissions } from '@/types/pb/my-pb-types'
 import { App, Directive, DirectiveBinding } from 'vue'
 
 interface AuthBinding extends DirectiveBinding {
-  value: string
+  value: ButtonPermissions
 }
 
 function checkAuthPermission(el: HTMLElement, binding: AuthBinding): void {

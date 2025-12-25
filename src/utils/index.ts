@@ -32,3 +32,6 @@ export * from './form'
 
 // socket 相关
 export * from './socket'
+
+// 提取常用工具函数
+export * from './my'

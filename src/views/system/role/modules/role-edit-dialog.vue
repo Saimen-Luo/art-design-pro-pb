@@ -7,23 +7,18 @@
     @close="handleClose"
   >
     <ElForm ref="formRef" :model="form" :rules="rules" label-width="120px">
-      <ElFormItem label="角色名称" prop="roleName">
-        <ElInput v-model="form.roleName" placeholder="请输入角色名称" />
+      <ElFormItem label="角色名称" prop="name">
+        <ElInput v-model="form.name" placeholder="请输入角色名称" />
       </ElFormItem>
-      <ElFormItem label="角色编码" prop="roleCode">
+      <!-- <ElFormItem label="角色编码" prop="roleCode">
         <ElInput v-model="form.roleCode" placeholder="请输入角色编码" />
+      </ElFormItem> -->
+      <ElFormItem label="描述" prop="desc">
+        <ElInput v-model="form.desc" type="textarea" :rows="3" placeholder="请输入角色描述" />
       </ElFormItem>
-      <ElFormItem label="描述" prop="description">
-        <ElInput
-          v-model="form.description"
-          type="textarea"
-          :rows="3"
-          placeholder="请输入角色描述"
-        />
-      </ElFormItem>
-      <ElFormItem label="启用">
+      <!-- <ElFormItem label="启用">
         <ElSwitch v-model="form.enabled" />
-      </ElFormItem>
+      </ElFormItem> -->
     </ElForm>
     <template #footer>
       <ElButton @click="handleClose">取消</ElButton>
@@ -33,14 +28,15 @@
 </template>
 
 <script setup lang="ts">
+  import { RolesCreate, RolesResponse } from '@/types/pb/pb-types'
+  import pb from '@/utils/http/pocketbase'
   import type { FormInstance, FormRules } from 'element-plus'
 
-  type RoleListItem = Api.SystemManage.RoleListItem
-
+  const rolesPb = pb.from('roles')
   interface Props {
     modelValue: boolean
     dialogType: 'add' | 'edit'
-    roleData?: RoleListItem
+    roleData?: RolesResponse
   }
 
   interface Emits {
@@ -70,27 +66,26 @@
    * 表单验证规则
    */
   const rules = reactive<FormRules>({
-    roleName: [
+    name: [
       { required: true, message: '请输入角色名称', trigger: 'blur' },
       { min: 2, max: 20, message: '长度在 2 到 20 个字符', trigger: 'blur' }
     ],
-    roleCode: [
-      { required: true, message: '请输入角色编码', trigger: 'blur' },
-      { min: 2, max: 50, message: '长度在 2 到 50 个字符', trigger: 'blur' }
-    ],
-    description: [{ required: true, message: '请输入角色描述', trigger: 'blur' }]
+    // roleCode: [
+    //   { required: true, message: '请输入角色编码', trigger: 'blur' },
+    //   { min: 2, max: 50, message: '长度在 2 到 50 个字符', trigger: 'blur' }
+    // ],
+    desc: [{ required: true, message: '请输入角色描述', trigger: 'blur' }]
   })
 
   /**
    * 表单数据
    */
-  const form = reactive<RoleListItem>({
-    roleId: 0,
-    roleName: '',
-    roleCode: '',
-    description: '',
-    createTime: '',
-    enabled: true
+  const form = reactive<RolesCreate>({
+    name: '',
+    // roleCode: '',
+    desc: ''
+    // menus: []
+    // enabled: true
   })
 
   /**
@@ -123,12 +118,11 @@
       Object.assign(form, props.roleData)
     } else {
       Object.assign(form, {
-        roleId: 0,
-        roleName: '',
-        roleCode: '',
-        description: '',
-        createTime: '',
-        enabled: true
+        name: '',
+        // roleCode: '',
+        desc: '',
+        id: undefined,
+        menus: undefined
       })
     }
   }
@@ -150,7 +144,11 @@
 
     try {
       await formRef.value.validate()
-      // TODO: 调用新增/编辑接口
+      if (form.id) {
+        await rolesPb.update(form.id, form)
+      } else {
+        await rolesPb.create(form)
+      }
       const message = props.dialogType === 'add' ? '新增成功' : '修改成功'
       ElMessage.success(message)
       emit('success')

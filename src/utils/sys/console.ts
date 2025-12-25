@@ -1,4 +1,5 @@
 // ANSI 转义码生成网站  https://patorjk.com/software/taag/#p=display&f=Big&t=ABB%0A
+/* 
 const asciiArt = `
 \x1b[32m欢迎使用 Art Design Pro！
 \x1b[0m
@@ -11,3 +12,4 @@ const asciiArt = `
 `
 
 console.log(asciiArt)
+*/

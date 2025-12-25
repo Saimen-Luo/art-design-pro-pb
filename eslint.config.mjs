@@ -70,6 +70,8 @@ export default [
   // 忽略文件
   {
     ignores: [
+      'src/types/pb/pb-types.ts',
+      'pocketbase',
       'node_modules',
       'dist',
       'public',

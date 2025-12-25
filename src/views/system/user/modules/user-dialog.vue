@@ -6,28 +6,41 @@
     align-center
   >
     <ElForm ref="formRef" :model="formData" :rules="rules" label-width="80px">
-      <ElFormItem label="用户名" prop="username">
-        <ElInput v-model="formData.username" placeholder="请输入用户名" />
+      <ElFormItem label="用户名" prop="name">
+        <ElInput v-model="formData.name" placeholder="请输入用户名" />
       </ElFormItem>
       <ElFormItem label="手机号" prop="phone">
         <ElInput v-model="formData.phone" placeholder="请输入手机号" />
       </ElFormItem>
       <ElFormItem label="性别" prop="gender">
         <ElSelect v-model="formData.gender">
-          <ElOption label="男" value="男" />
-          <ElOption label="女" value="女" />
+          <ElOption label="男" value="male" />
+          <ElOption label="女" value="female" />
         </ElSelect>
       </ElFormItem>
-      <ElFormItem label="角色" prop="role">
-        <ElSelect v-model="formData.role" multiple>
-          <ElOption
-            v-for="role in roleList"
-            :key="role.roleCode"
-            :value="role.roleCode"
-            :label="role.roleName"
+      <ElFormItem label="角色" prop="roles">
+        <ElSelect v-model="formData.roles" multiple>
+          <ElOption v-for="role in roleList" :key="role.id" :value="role.id" :label="role.name" />
+        </ElSelect>
+      </ElFormItem>
+      <template v-if="!formData.id">
+        <ElFormItem label="密码" prop="password">
+          <ElInput
+            v-model="formData.password"
+            type="password"
+            show-password
+            placeholder="请输入密码"
           />
-        </ElSelect>
-      </ElFormItem>
+        </ElFormItem>
+        <ElFormItem label="确认密码" prop="passwordConfirm">
+          <ElInput
+            v-model="formData.passwordConfirm"
+            type="password"
+            show-password
+            placeholder="请二次确认密码"
+          />
+        </ElFormItem>
+      </template>
     </ElForm>
     <template #footer>
       <div class="dialog-footer">
@@ -39,13 +52,16 @@
 </template>
 
 <script setup lang="ts">
-  import { ROLE_LIST_DATA } from '@/mock/temp/formData'
+  import { RolesResponse, UsersCreate, UsersResponse, UsersUpdate } from '@/types/pb/pb-types'
+  import pb from '@/utils/http/pocketbase'
   import type { FormInstance, FormRules } from 'element-plus'
+
+  const usersPb = pb.from('users')
 
   interface Props {
     visible: boolean
     type: string
-    userData?: Partial<Api.SystemManage.UserListItem>
+    userData?: Partial<UsersResponse>
   }
 
   interface Emits {
@@ -57,7 +73,10 @@
   const emit = defineEmits<Emits>()
 
   // 角色列表数据
-  const roleList = ref(ROLE_LIST_DATA)
+  const roleList = ref<RolesResponse[]>([])
+  pb.from('roles')
+    .getFullList()
+    .then((list) => (roleList.value = list))
 
   // 对话框显示控制
   const dialogVisible = computed({
@@ -71,25 +90,49 @@
   const formRef = ref<FormInstance>()
 
   // 表单数据
-  const formData = reactive({
-    username: '',
+  const emptyData: UsersUpdate = {
+    id: undefined,
+    password: undefined,
+    passwordConfirm: undefined,
+    name: '',
     phone: '',
-    gender: '男',
-    role: [] as string[]
-  })
+    gender: '',
+    roles: [] as string[]
+  }
+  const formData = reactive<UsersUpdate>({ ...emptyData })
 
   // 表单验证规则
   const rules: FormRules = {
-    username: [
+    name: [
       { required: true, message: '请输入用户名', trigger: 'blur' },
       { min: 2, max: 20, message: '长度在 2 到 20 个字符', trigger: 'blur' }
     ],
     phone: [
-      { required: true, message: '请输入手机号', trigger: 'blur' },
-      { pattern: /^1[3-9]\d{9}$/, message: '请输入正确的手机号格式', trigger: 'blur' }
+      // { required: true, message: '请输入手机号', trigger: 'blur' },
+      {
+        pattern: /^1[3-9]\d{9}$/,
+        message: '手机号格式：1开头，第二位为3-9的11位数字',
+        trigger: 'blur'
+      }
     ],
     gender: [{ required: true, message: '请选择性别', trigger: 'blur' }],
-    role: [{ required: true, message: '请选择角色', trigger: 'blur' }]
+    roles: [{ required: true, message: '请选择角色', trigger: 'blur' }],
+    password: [
+      { required: true, message: '请输入密码', trigger: 'blur' },
+      { min: 8, message: '密码至少8位', trigger: 'blur' }
+    ],
+    passwordConfirm: [
+      { required: true, message: '请二次确认密码', trigger: 'blur' },
+      {
+        validator: (rule: any, value: any, callback: any) => {
+          if (value !== formData.password) {
+            callback(new Error('密码不匹配'))
+          } else {
+            callback()
+          }
+        }
+      }
+    ]
   }
 
   /**
@@ -97,15 +140,8 @@
    * 根据对话框类型（新增/编辑）填充表单
    */
   const initFormData = () => {
-    const isEdit = props.type === 'edit' && props.userData
-    const row = props.userData
-
-    Object.assign(formData, {
-      username: isEdit && row ? row.userName || '' : '',
-      phone: isEdit && row ? row.userPhone || '' : '',
-      gender: isEdit && row ? row.userGender || '男' : '男',
-      role: isEdit && row ? (Array.isArray(row.userRoles) ? row.userRoles : []) : []
-    })
+    Object.assign(formData, emptyData)
+    Object.assign(formData, props.userData)
   }
 
   /**
@@ -132,8 +168,13 @@
   const handleSubmit = async () => {
     if (!formRef.value) return
 
-    await formRef.value.validate((valid) => {
+    await formRef.value.validate(async (valid) => {
       if (valid) {
+        if (formData.id) {
+          await usersPb.update(formData.id, formData)
+        } else {
+          await usersPb.create(formData as UsersCreate)
+        }
         ElMessage.success(dialogType.value === 'add' ? '添加成功' : '更新成功')
         dialogVisible.value = false
         emit('submit')

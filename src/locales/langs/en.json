@@ -1,4 +1,6 @@
 {
+  "Failed to fetch": "Failed to establish network connection",
+  "Failed to authenticate.": "Failed to authenticate with the account and password",
   "httpMsg": {
     "unauthorized": "Unauthorized access, please login again",
     "forbidden": "Access to this resource is forbidden",

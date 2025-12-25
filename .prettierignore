@@ -1,3 +1,6 @@
+/src/types/pb/pb-types.ts
+/pocketbase/*
+!/pocketbase/pb_hooks
 /node_modules/*
 /dist/*
 /src/main.ts

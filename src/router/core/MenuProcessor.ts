@@ -10,10 +10,10 @@
 import type { AppRouteRecord } from '@/types/router'
 import { useUserStore } from '@/store/modules/user'
 import { useAppMode } from '@/hooks/core/useAppMode'
-import { fetchGetMenuList } from '@/api/system-manage'
 import { asyncRoutes } from '../routes/asyncRoutes'
 import { RoutesAlias } from '../routesAlias'
 import { formatMenuTitle } from '@/utils'
+import { useMenuStore } from '@/store/modules/menu'
 
 export class MenuProcessor {
   /**
@@ -57,7 +57,7 @@ export class MenuProcessor {
    * 处理后端控制模式的菜单
    */
   private async processBackendMenu(): Promise<AppRouteRecord[]> {
-    const list = await fetchGetMenuList()
+    const list = useMenuStore().rolesRoutes
     return this.filterEmptyMenus(list)
   }
 
